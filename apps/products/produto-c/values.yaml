@@ -1,0 +1,3 @@
+product: produto-c
+replicaCount: 3
+message: "Produto C - adicionado sem tocar no ArgoCD"
