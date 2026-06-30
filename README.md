@@ -10,6 +10,11 @@
 
 Esta POC demonstra como um único repositório pode implantar infraestrutura Azure isolada para múltiplos produtos, sem duplicar código Terraform.
 
+Ela cobre duas camadas, ambas com o mesmo princípio (configuração por produto, não código duplicado):
+
+- **Infraestrutura** (`infra/` + `.github/`): Terraform + GitHub Actions (matrix) → recursos Azure por produto.
+- **Aplicações** (`apps/` + `platform/`): ArgoCD ApplicationSet → aplicações no Kubernetes por produto, sem ajuste manual no ArgoCD. Veja [`apps/README.md`](apps/README.md) e [`platform/README.md`](platform/README.md).
+
 > ⚠️ Este repositório é uma **demo / prova de conceito**. Antes de usar em produção, revise segurança, permissões, custos, governança, observabilidade e conformidade. Veja [DISCLAIMER.md](./DISCLAIMER.md) e [SUPPORT.md](./SUPPORT.md).
 
 Para a explicação completa da POC, com diagramas, consulte [`docs/GUIA_POC.md`](docs/GUIA_POC.md).
@@ -58,6 +63,12 @@ repo/
 |-- LICENSE
 |-- README.md
 |-- SUPPORT.md
+|-- apps/
+|   |-- charts/product-app/        # chart Helm reutilizável
+|   |-- products/                  # 1 pasta por produto (só values.yaml)
+|   `-- appset/applicationset.yaml # ArgoCD git directory generator
+|-- platform/
+|   `-- terraform/                 # AKS (cluster compartilhado)
 `-- infra/
     |-- backend.tf
     |-- main.tf
@@ -127,6 +138,8 @@ Adicionar um novo produto não exige copiar Terraform. Basta criar um novo arqui
 | [DISCLAIMER.md](./DISCLAIMER.md) | Aviso legal e limites de uso da POC. |
 | [SUPPORT.md](./SUPPORT.md) | Como pedir ajuda e limites de suporte. |
 | [docs/GUIA_POC.md](./docs/GUIA_POC.md) | Guia em pt-BR para explicar a POC, com diagramas. |
+| [apps/README.md](./apps/README.md) | Camada de aplicações: ArgoCD ApplicationSet (GitOps por produto). |
+| [platform/README.md](./platform/README.md) | Cluster compartilhado: AKS + instalação do ArgoCD. |
 | [bootstrap/README.md](./bootstrap/README.md) | Detalhes do bootstrap Azure + GitHub OIDC. |
 
 ## Suporte e aviso legal

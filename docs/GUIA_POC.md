@@ -14,6 +14,11 @@ O padrão é simples:
 
 Resultado: o time consegue escalar de 2 para N produtos adicionando configuração, não copiando projeto.
 
+A POC tem duas camadas, ambas seguindo o mesmo princípio (configuração por produto, não código duplicado):
+
+- **Camada de infraestrutura**: Terraform + GitHub Actions (matrix) → recursos Azure por produto.
+- **Camada de aplicações**: ArgoCD ApplicationSet (GitOps) → aplicações no Kubernetes por produto, sem ajuste manual no ArgoCD a cada produto.
+
 ## A dor que a POC resolve
 
 O cenário-alvo é equivalente a:
@@ -128,9 +133,67 @@ A visão completa mencionada no cenário-alvo (banco de dados, DNS e escala pró
 | Banco de dados por produto | Adicionar um recurso de banco no `infra/` (ex.: `azurerm_postgresql_flexible_server`), parametrizado por `tfvars`. |
 | Filas de movimento | Já demonstrado via `azurerm_storage_queue`; pode evoluir para Service Bus por produto. |
 | DNS por produto | Adicionar zona/registro DNS no `infra/` (ex.: `azurerm_dns_zone` ou DNS privado) para roteamento por produto. |
-| Escala de execução (ex.: 1000 pods de um produto, 100 de outro) | Camada de **runtime**, não de IaC por produto: a infra por produto fica isolada aqui, e a escala de pods/réplicas é configurada no orquestrador (ex.: AKS/replicas/HPA) por produto. |
+| Escala de execução (ex.: muitas réplicas de um produto, poucas de outro) | **Demonstrado** na camada de aplicações: o campo `replicaCount` no `values.yaml` de cada produto controla a escala independente, sem alterar o chart. Veja a seção da camada ArgoCD. |
 
 Ou seja: o que muda entre produtos é **configuração**, não código.
+
+## Camada de aplicações: ArgoCD ApplicationSet (GitOps)
+
+Esta camada resolve a dor relatada pelo CoE de Nuvem: **ter que ajustar a configuração do ArgoCD manualmente a cada produto**.
+
+### O problema
+
+No uso comum do ArgoCD, cada produto exige um recurso `Application` próprio, criado e ajustado à mão. Com muitos produtos, isso vira trabalho repetitivo e fonte de erro.
+
+### A solução
+
+O `apps/appset/applicationset.yaml` usa o **git directory generator**: ele varre `apps/products/*` e gera **um `Application` por pasta de produto**, automaticamente. É o mesmo princípio da matrix do GitHub Actions, agora no GitOps.
+
+```mermaid
+flowchart TB
+    subgraph Repo["Repositório único (Git)"]
+        Chart["apps/charts/product-app\nchart Helm único"]
+        PA["apps/products/produto-a/values.yaml"]
+        PB["apps/products/produto-b/values.yaml"]
+        PC["apps/products/produto-c/values.yaml"]
+        AppSet["apps/appset/applicationset.yaml\ngit directory generator"]
+    end
+
+    AppSet -->|varre products/*| Gen{ApplicationSet}
+    Gen --> AppA["Application produto-a"]
+    Gen --> AppB["Application produto-b"]
+    Gen --> AppC["Application produto-c"]
+
+    AppA --> NSA["Namespace produto-a\n2 réplicas"]
+    AppB --> NSB["Namespace produto-b\n1 réplica"]
+    AppC --> NSC["Namespace produto-c\n3 réplicas"]
+
+    Chart -.usa.-> AppA
+    Chart -.usa.-> AppB
+    Chart -.usa.-> AppC
+```
+
+### Adicionar um produto = zero ajuste no ArgoCD
+
+1. Criar a pasta `apps/products/produto-c/` com um `values.yaml`.
+2. Commit e push para `main`.
+3. O ArgoCD detecta a nova pasta e cria o `Application` `produto-c` sozinho.
+
+Nada é editado no ArgoCD. A escala (`replicaCount`) é definida no `values.yaml` de cada produto.
+
+### Resultado validado nesta POC
+
+Executado em um cluster AKS real (`aks-multiproduct-poc`) com ArgoCD instalado:
+
+| Produto | Forma de inclusão | Réplicas | Estado |
+| --- | --- | --- | --- |
+| produto-a | pasta inicial | 2 | Synced / Healthy |
+| produto-b | pasta inicial | 1 | Synced / Healthy |
+| produto-c | adicionado só com push da pasta | 3 | Synced / Healthy |
+
+O `produto-c` foi criado automaticamente pelo ApplicationSet após o push, **sem nenhuma alteração na configuração do ArgoCD** — exatamente o ponto de dor que o CoE de Nuvem levantou.
+
+Detalhes de operação em [../apps/README.md](../apps/README.md) e [../platform/README.md](../platform/README.md).
 
 ## Estrutura do repositório
 
@@ -158,6 +221,22 @@ repo/
     |-- providers.tf
     |-- variables.tf
     `-- versions.tf
+```
+
+Camadas adicionais de GitOps/Kubernetes:
+
+```text
+repo/
+|-- apps/                          # camada de aplicações (ArgoCD)
+|   |-- charts/product-app/        # chart Helm único e reutilizável
+|   |-- products/                  # 1 pasta por produto (só values.yaml)
+|   |   |-- produto-a/values.yaml
+|   |   |-- produto-b/values.yaml
+|   |   `-- produto-c/values.yaml
+|   `-- appset/applicationset.yaml # git directory generator
+`-- platform/                      # cluster compartilhado
+    |-- README.md
+    `-- terraform/                 # AKS via Terraform
 ```
 
 ## O que cada pasta faz
