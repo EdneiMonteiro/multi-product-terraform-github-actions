@@ -1,0 +1,6 @@
+apiVersion: v2
+name: product-app
+description: Chart Helm reutilizável, implantado uma vez por produto via ArgoCD ApplicationSet.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

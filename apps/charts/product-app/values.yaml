@@ -1,0 +1,13 @@
+product: default
+replicaCount: 1
+
+image:
+  repository: mcr.microsoft.com/azuredocs/aks-helloworld
+  tag: "v1"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+message: "Aplicação padrão"

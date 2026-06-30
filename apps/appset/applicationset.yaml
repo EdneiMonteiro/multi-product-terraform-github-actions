@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: produtos
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/EdneiMonteiro/multi-product-terraform-github-actions.git
+        revision: main
+        directories:
+          - path: apps/products/*
+  template:
+    metadata:
+      name: "{{ .path.basename }}"
+      labels:
+        product: "{{ .path.basename }}"
+    spec:
+      project: default
+      sources:
+        - repoURL: https://github.com/EdneiMonteiro/multi-product-terraform-github-actions.git
+          targetRevision: main
+          path: apps/charts/product-app
+          helm:
+            valueFiles:
+              - "$values/apps/products/{{ .path.basename }}/values.yaml"
+        - repoURL: https://github.com/EdneiMonteiro/multi-product-terraform-github-actions.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ .path.basename }}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

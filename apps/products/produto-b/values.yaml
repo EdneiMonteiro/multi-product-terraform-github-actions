@@ -1,0 +1,3 @@
+product: produto-b
+replicaCount: 1
+message: "Produto B - deploy isolado via ArgoCD ApplicationSet"
