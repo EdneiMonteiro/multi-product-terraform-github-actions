@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "Se usar este material, por favor cite."
+title: "Multi-product Terraform deployments with GitHub Actions"
+type: software
+authors:
+  - given-names: Ednei
+    family-names: Monteiro
+    orcid: "https://orcid.org/0009-0006-0765-4201"
+url: "https://github.com/EdneiMonteiro/multi-product-terraform-github-actions"
+

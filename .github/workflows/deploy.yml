@@ -1,0 +1,93 @@
+name: Multi Deploy Terraform
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Run only plan or plan and apply."
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy ${{ matrix.product }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - product: produto-a
+            tfvars: config/produto-a.tfvars
+            state_key: products/produto-a/terraform.tfstate
+          - product: produto-b
+            tfvars: config/produto-b.tfvars
+            state_key: products/produto-b/terraform.tfstate
+
+    concurrency:
+      group: terraform-${{ matrix.product }}
+      cancel-in-progress: false
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_USE_OIDC: true
+      TF_IN_AUTOMATION: true
+      TF_INPUT: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        working-directory: infra
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            -backend-config="key=${{ matrix.state_key }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true"
+
+      - name: Terraform Validate
+        working-directory: infra
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: infra
+        run: |
+          terraform plan \
+            -var-file="../${{ matrix.tfvars }}" \
+            -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -out="${{ matrix.product }}.tfplan"
+
+      - name: Terraform Apply
+        if: ${{ inputs.action == 'apply' }}
+        working-directory: infra
+        run: terraform apply -auto-approve "${{ matrix.product }}.tfplan"
