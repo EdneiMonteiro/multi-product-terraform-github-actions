@@ -73,6 +73,8 @@ Execute o bootstrap uma vez para criar a identidade Azure, a credencial federada
 
 ```powershell
 .\bootstrap\bootstrap-state.ps1 `
+  -TenantId '<tenant-id>' `
+  -SubscriptionId '<subscription-id>' `
   -GitHubOwner '<github-owner-ou-org>' `
   -GitHubRepo '<nome-do-repositorio>' `
   -GitHubBranch 'main' `

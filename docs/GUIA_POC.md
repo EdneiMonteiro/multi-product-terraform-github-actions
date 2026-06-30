@@ -42,7 +42,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    Dev["Dev faz push ou executa workflow manual"] --> GH["GitHub Actions"]
+    Dev["Dev executa o workflow manual (workflow_dispatch)"] --> GH["GitHub Actions"]
 
     GH --> Matrix{"Matrix de produtos"}
     Matrix --> JobA["Job produto-a"]
@@ -74,7 +74,7 @@ sequenceDiagram
     participant Azure as Azure
     participant State as Azure Storage State
 
-    Dev->>GH: Push na main ou workflow_dispatch
+    Dev->>GH: Executa o workflow manual (workflow_dispatch)
     GH->>GH: Expande matrix: produto-a, produto-b
     GH->>Entra: Solicita token OIDC
     Entra-->>GH: Retorna token Azure de curta duração
@@ -111,6 +111,26 @@ flowchart TB
 | State | `products/produto-a/terraform.tfstate` | `products/produto-b/terraform.tfstate` |
 | Grupo de recursos | `rg-produto-a-terraform-poc` | `rg-produto-b-terraform-poc` |
 | Execução | Job matrix `produto-a` | Job matrix `produto-b` |
+
+## Escopo desta POC e extensões
+
+A POC demonstra concretamente o **padrão**, com recursos simples e baratos por produto:
+
+- grupo de recursos;
+- storage account;
+- container de blob;
+- fila (queue).
+
+A visão completa mencionada no cenário-alvo (banco de dados, DNS e escala própria por produto) **usa exatamente o mesmo padrão** — basta acrescentar recursos no código único em `infra/`, parametrizados por `tfvars`. Esses itens entram como extensão:
+
+| Necessidade | Como estender (mesmo padrão, sem duplicar código) |
+| --- | --- |
+| Banco de dados por produto | Adicionar um recurso de banco no `infra/` (ex.: `azurerm_postgresql_flexible_server`), parametrizado por `tfvars`. |
+| Filas de movimento | Já demonstrado via `azurerm_storage_queue`; pode evoluir para Service Bus por produto. |
+| DNS por produto | Adicionar zona/registro DNS no `infra/` (ex.: `azurerm_dns_zone` ou DNS privado) para roteamento por produto. |
+| Escala de execução (ex.: 1000 pods de um produto, 100 de outro) | Camada de **runtime**, não de IaC por produto: a infra por produto fica isolada aqui, e a escala de pods/réplicas é configurada no orquestrador (ex.: AKS/replicas/HPA) por produto. |
+
+Ou seja: o que muda entre produtos é **configuração**, não código.
 
 ## Estrutura do repositório
 
@@ -195,7 +215,7 @@ Ou seja, apenas esse repositório e branch conseguem obter token para deploy.
      state_key: products/produto-c/terraform.tfstate
    ```
 
-4. Fazer push para `main` ou executar o workflow manualmente.
+4. Executar o workflow manualmente (`workflow_dispatch`), escolhendo `plan` ou `apply`.
 
 Não é necessário copiar a pasta `infra/` nem criar uma pipeline nova.
 
@@ -228,7 +248,7 @@ flowchart LR
     Change["Alterar infra ou config"] --> PR["Abrir PR"]
     PR --> Review["Revisar mudança"]
     Review --> Main["Merge na main"]
-    Main --> Deploy["GitHub Actions matrix"]
+    Main --> Deploy["Disparar workflow manual (plan/apply)"]
     Deploy --> Azure["Azure atualizado por produto"]
 ```
 
