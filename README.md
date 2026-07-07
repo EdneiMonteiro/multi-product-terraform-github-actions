@@ -147,3 +147,8 @@ Adicionar um novo produto não exige copiar Terraform. Basta criar um novo arqui
 - Sem SLA nem suporte oficial. Veja [SUPPORT.md](./SUPPORT.md).
 - Uso sujeito ao aviso legal em [DISCLAIMER.md](./DISCLAIMER.md).
 - Esta POC não substitui revisão de arquitetura, segurança, custos e governança antes de qualquer uso produtivo.
+
+## 🤝 Contributing
+
+Issue and pull request creation is restricted to collaborators. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for details.
